@@ -6,6 +6,7 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/lightningnetwork/lnd/autopilot"
+	"github.com/stretchr/testify/require"
 )
 
 // randKey returns a random public key.
@@ -32,9 +33,7 @@ func TestSetNodeScores(t *testing.T) {
 	var pubkeys []autopilot.NodeID
 	for i := 0; i < numKeys; i++ {
 		k, err := randKey()
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
 		nID := autopilot.NewNodeID(k)
 		pubkeys = append(pubkeys, nID)
@@ -48,13 +47,8 @@ func TestSetNodeScores(t *testing.T) {
 	}
 
 	applied, err := h.SetNodeScores(name, scores)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !applied {
-		t.Fatalf("scores were not applied")
-	}
+	require.NoError(t, err)
+	require.True(t, applied, "scores were not applied")
 
 	// Query all scores, half should be set, half should be zero.
 	q := make(map[autopilot.NodeID]struct{})
@@ -64,9 +58,7 @@ func TestSetNodeScores(t *testing.T) {
 	resp, err := h.NodeScores(
 		nil, nil, btcutil.Amount(btcutil.SatoshiPerBitcoin), q,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	for i := 0; i < numKeys; i++ {
 		var expected float64
@@ -80,21 +72,13 @@ func TestSetNodeScores(t *testing.T) {
 			score = s.Score
 		}
 
-		if score != expected {
-			t.Fatalf("expected score %v, got %v",
-				expected, score)
-		}
+		require.Equal(t, expected, score)
 
 	}
 
 	// Try to apply scores with bogus name, should not be applied.
 	applied, err = h.SetNodeScores("dummy", scores)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if applied {
-		t.Fatalf("scores were applied")
-	}
+	require.NoError(t, err)
+	require.False(t, applied, "scores were applied")
 
 }

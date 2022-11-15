@@ -72,28 +72,21 @@ func TestTLSAutoRegeneration(t *testing.T) {
 		RPCListeners:    rpcListeners,
 	}
 	_, _, _, cleanUp, err := getTLSConfig(cfg)
-	if err != nil {
-		t.Fatalf("couldn't retrieve TLS config")
-	}
+	require.NoError(t, err, "couldn't retrieve TLS config")
 	t.Cleanup(cleanUp)
 
 	// Grab the certificate to test that getTLSConfig did its job correctly
 	// and generated a new cert.
 	newCertData, err := tls.LoadX509KeyPair(certPath, keyPath)
-	if err != nil {
-		t.Fatalf("couldn't grab new certificate")
-	}
+	require.NoError(t, err, "couldn't grab new certificate")
 
 	newCert, err := x509.ParseCertificate(newCertData.Certificate[0])
-	if err != nil {
-		t.Fatalf("couldn't parse new certificate")
-	}
+	require.NoError(t, err, "couldn't parse new certificate")
 
 	// Check that the expired certificate was successfully deleted and
 	// replaced with a new one.
-	if !newCert.NotAfter.After(expiredCert.NotAfter) {
-		t.Fatalf("New certificate expiration is too old")
-	}
+	require.True(t, newCert.NotAfter.After(expiredCert.NotAfter),
+		"New certificate expiration is too old")
 }
 
 // genExpiredCertPair generates an expired key/cert pair to test that expired
@@ -134,9 +127,7 @@ func genExpiredCertPair(t *testing.T, certDirPath string) ([]byte, []byte) {
 
 	// Generate a private key for the certificate.
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatalf("failed to generate a private key")
-	}
+	require.NoError(t, err, "failed to generate a private key")
 
 	certDerBytes, err := x509.CreateCertificate(
 		rand.Reader, &template, &template, &priv.PublicKey, priv,
@@ -221,11 +212,8 @@ func TestShouldPeerBootstrap(t *testing.T) {
 			shouldBoostrap: true,
 		},
 	}
-	for i, testCase := range testCases {
+	for _, testCase := range testCases {
 		bootstrapped := shouldPeerBootstrap(testCase.cfg)
-		if bootstrapped != testCase.shouldBoostrap {
-			t.Fatalf("#%v: expected bootstrap=%v, got bootstrap=%v",
-				i, testCase.shouldBoostrap, bootstrapped)
-		}
+		require.Equal(t, testCase.shouldBoostrap, bootstrapped)
 	}
 }

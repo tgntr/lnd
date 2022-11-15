@@ -5,6 +5,7 @@ import (
 
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/lightningnetwork/lnd/autopilot"
+	"github.com/stretchr/testify/require"
 )
 
 // TestMedian tests the Median method.
@@ -43,8 +44,6 @@ func TestMedian(t *testing.T) {
 
 	for _, test := range testCases {
 		res := autopilot.Median(test.values)
-		if res != test.median {
-			t.Fatalf("expected median %v, got %v", test.median, res)
-		}
+		require.Equal(t, test.median, res)
 	}
 }

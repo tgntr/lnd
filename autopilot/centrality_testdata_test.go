@@ -57,10 +57,8 @@ func buildTestGraph(t *testing.T,
 			require.NoError(t, err,
 				"unexpected error adding random channel",
 			)
-			if err != nil {
-				t.Fatalf("unexpected error adding"+
-					"random channel: %v", err)
-			}
+			require.NoError(t, err,
+				"unexpected error adding random channel")
 		}
 	}
 

@@ -3,6 +3,8 @@ package aezeed
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -20,16 +22,12 @@ func BenchmarkTomnemonic(b *testing.B) {
 
 	pass := []byte("1234567890abcedfgh")
 	cipherSeed, err := New(0, nil, time.Now())
-	if err != nil {
-		b.Fatalf("unable to create seed: %v", err)
-	}
+	require.NoError(b, err, "unable to create seed")
 
 	var r Mnemonic
 	for i := 0; i < b.N; i++ {
 		r, err = cipherSeed.ToMnemonic(pass)
-		if err != nil {
-			b.Fatalf("unable to encipher: %v", err)
-		}
+		require.NoError(b, err, "unable to encipher")
 	}
 
 	b.ReportAllocs()
@@ -46,21 +44,15 @@ func BenchmarkToCipherSeed(b *testing.B) {
 
 	pass := []byte("1234567890abcedfgh")
 	cipherSeed, err := New(0, nil, time.Now())
-	if err != nil {
-		b.Fatalf("unable to create seed: %v", err)
-	}
+	require.NoError(b, err, "unable to create seed")
 
 	mnemonic, err := cipherSeed.ToMnemonic(pass)
-	if err != nil {
-		b.Fatalf("unable to create mnemonic: %v", err)
-	}
+	require.NoError(b, err, "unable to create mnemonic")
 
 	var s *CipherSeed
 	for i := 0; i < b.N; i++ {
 		s, err = mnemonic.ToCipherSeed(pass)
-		if err != nil {
-			b.Fatalf("unable to decipher: %v", err)
-		}
+		require.NoError(b, err, "unable to decipher")
 	}
 
 	b.ReportAllocs()

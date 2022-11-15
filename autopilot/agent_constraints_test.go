@@ -7,6 +7,7 @@ import (
 
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/lightningnetwork/lnd/lnwire"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConstraintsChannelBudget(t *testing.T) {
@@ -148,18 +149,12 @@ func TestConstraintsChannelBudget(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for _, testCase := range testCases {
 		amtToAllocate, numMore := constraints.ChannelBudget(
 			testCase.channels, testCase.walletAmt,
 		)
 
-		if amtToAllocate != testCase.amtAvailable {
-			t.Fatalf("test #%v: expected %v, got %v",
-				i, testCase.amtAvailable, amtToAllocate)
-		}
-		if numMore != testCase.numMore {
-			t.Fatalf("test #%v: expected %v, got %v",
-				i, testCase.numMore, numMore)
-		}
+		require.Equal(t, testCase.amtAvailable, amtToAllocate)
+		require.Equal(t, testCase.numMore, numMore)
 	}
 }

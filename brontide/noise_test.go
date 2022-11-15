@@ -112,40 +112,29 @@ func TestConnectionCorrectness(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		msg := []byte(fmt.Sprintf("hello%d", i))
 
-		if _, err := localConn.Write(msg); err != nil {
-			t.Fatalf("remote conn failed to write: %v", err)
-		}
+		_, err := localConn.Write(msg)
+		require.NoError(t, err, "remote conn failed to write")
 
 		readBuf := make([]byte, len(msg))
-		if _, err := remoteConn.Read(readBuf); err != nil {
-			t.Fatalf("local conn failed to read: %v", err)
-		}
-
-		if !bytes.Equal(readBuf, msg) {
-			t.Fatalf("messages don't match, %v vs %v",
-				string(readBuf), string(msg))
-		}
+		_, err = remoteConn.Read(readBuf)
+		require.NoError(t, err, "local conn failed to read")
+		require.Equal(t, readBuf, msg)
 	}
 
 	// Now try incremental message reads. This simulates first writing a
 	// message header, then a message body.
 	outMsg := []byte("hello world")
-	if _, err := localConn.Write(outMsg); err != nil {
-		t.Fatalf("remote conn failed to write: %v", err)
-	}
+	_, err = localConn.Write(outMsg)
+	require.NoError(t, err, "remote conn failed to write")
 
 	readBuf := make([]byte, len(outMsg))
-	if _, err := remoteConn.Read(readBuf[:len(outMsg)/2]); err != nil {
-		t.Fatalf("local conn failed to read: %v", err)
-	}
-	if _, err := remoteConn.Read(readBuf[len(outMsg)/2:]); err != nil {
-		t.Fatalf("local conn failed to read: %v", err)
-	}
+	_, err = remoteConn.Read(readBuf[:len(outMsg)/2])
+	require.NoError(t, err, "local conn failed to read")
 
-	if !bytes.Equal(outMsg, readBuf) {
-		t.Fatalf("messages don't match, %v vs %v",
-			string(readBuf), string(outMsg))
-	}
+	_, err = remoteConn.Read(readBuf[len(outMsg)/2:])
+	require.NoError(t, err, "local conn failed to read")
+
+	require.Equal(t, outMsg, readBuf)
 }
 
 // TestConecurrentHandshakes verifies the listener's ability to not be blocked
@@ -184,9 +173,7 @@ func TestConcurrentHandshakes(t *testing.T) {
 		}
 	}
 	for _, tcpErr := range tcpErrs {
-		if tcpErr != nil {
-			t.Fatalf("unable to tcp dial listener: %v", tcpErr)
-		}
+		require.NoError(t, tcpErr, "unable to tcp dial listener")
 	}
 
 	// Now, construct a new private key and use the brontide dialer to
@@ -210,9 +197,7 @@ func TestConcurrentHandshakes(t *testing.T) {
 	defer conn.Close()
 
 	result := <-connChan
-	if result.err != nil {
-		t.Fatalf("unable to dial %v: %v", netAddr, result.err)
-	}
+	require.NoError(t, result.err, "unable to dial")
 	result.conn.Close()
 }
 
@@ -229,18 +214,14 @@ func TestMaxPayloadLength(t *testing.T) {
 	// A write of the payload generated above to the state machine should
 	// be rejected as it's over the max payload length.
 	err := b.WriteMessage(payloadToReject)
-	if err != ErrMaxMessageLengthExceeded {
-		t.Fatalf("payload is over the max allowed length, the write " +
-			"should have been rejected")
-	}
+	require.Equal(t, ErrMaxMessageLengthExceeded, err)
 
 	// Generate another payload which should be accepted as a valid
 	// payload.
 	payloadToAccept := make([]byte, math.MaxUint16-1)
-	if err := b.WriteMessage(payloadToAccept); err != nil {
-		t.Fatalf("write for payload was rejected, should have been " +
-			"accepted")
-	}
+	err = b.WriteMessage(payloadToAccept)
+	require.NoError(t, err,
+		"write for payload was rejected, should have been accepted")
 
 	// Generate a final payload which is only *slightly* above the max payload length
 	// when the MAC is accounted for.
@@ -248,10 +229,7 @@ func TestMaxPayloadLength(t *testing.T) {
 
 	// This payload should be rejected.
 	err = b.WriteMessage(payloadToReject)
-	if err != ErrMaxMessageLengthExceeded {
-		t.Fatalf("payload is over the max allowed length, the write " +
-			"should have been rejected")
-	}
+	require.Equal(t, ErrMaxMessageLengthExceeded, err)
 }
 
 func TestWriteMessageChunking(t *testing.T) {
@@ -288,20 +266,15 @@ func TestWriteMessageChunking(t *testing.T) {
 
 	// Attempt to read the entirety of the message generated above.
 	buf := make([]byte, len(largeMessage))
-	if _, err := io.ReadFull(remoteConn, buf); err != nil {
-		t.Fatalf("unable to read message: %v", err)
-	}
+	_, err = io.ReadFull(remoteConn, buf)
+	require.NoError(t, err, "unable to read message")
 
 	err = <-errCh
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Finally, the message the remote end of the connection received
 	// should be identical to what we sent from the local connection.
-	if !bytes.Equal(buf, largeMessage) {
-		t.Fatalf("bytes don't match")
-	}
+	require.Equal(t, buf, largeMessage)
 }
 
 // TestBolt0008TestVectors ensures that our implementation of brontide exactly
@@ -374,16 +347,12 @@ func TestBolt0008TestVectors(t *testing.T) {
 		"8be33fc807077dc56ac80d95d9cd4ddbd21325eff73f70df608655115" +
 		"1f58b8afe6c195782c6a")
 	require.NoError(t, err, "unable to parse expected act one")
-	if !bytes.Equal(expectedActOne, actOne[:]) {
-		t.Fatalf("act one mismatch: expected %x, got %x",
-			expectedActOne, actOne)
-	}
+	require.Equal(t, expectedActOne, actOne[:])
 
 	// With the assertion above passed, we'll now process the act one
 	// payload with the responder of the crypto handshake.
-	if err := responder.RecvActOne(actOne); err != nil {
-		t.Fatalf("responder unable to process act one: %v", err)
-	}
+	err = responder.RecvActOne(actOne)
+	require.NoError(t, err, "responder unable to process act one")
 
 	// Next, we'll start the second act by having the responder generate
 	// its contribution to the crypto handshake. We'll also verify that we
@@ -395,16 +364,13 @@ func TestBolt0008TestVectors(t *testing.T) {
 		"d1870bb580344804617879a14949cf22285f1bae3f276e2470b93aac58" +
 		"3c9ef6eafca3f730ae")
 	require.NoError(t, err, "unable to parse expected act two")
-	if !bytes.Equal(expectedActTwo, actTwo[:]) {
-		t.Fatalf("act two mismatch: expected %x, got %x",
-			expectedActTwo, actTwo)
-	}
+
+	require.Equal(t, expectedActTwo, actTwo[:])
 
 	// Moving the handshake along, we'll also ensure that the initiator
 	// accepts the act two payload.
-	if err := initiator.RecvActTwo(actTwo); err != nil {
-		t.Fatalf("initiator unable to process act two: %v", err)
-	}
+	err = initiator.RecvActTwo(actTwo)
+	require.NoError(t, err, "initiator unable to process act two")
 
 	// At the final step, we'll generate the last act from the initiator
 	// and once again verify that it properly matches the test vectors.
@@ -414,16 +380,12 @@ func TestBolt0008TestVectors(t *testing.T) {
 		"d6e5fd7590a6e1c3a0344cfc9d5b57357049aa22355361aa02e55a8f" +
 		"c28fef5bd6d71ad0c38228dc68b1c466263b47fdf31e560e139ba")
 	require.NoError(t, err, "unable to parse expected act three")
-	if !bytes.Equal(expectedActThree, actThree[:]) {
-		t.Fatalf("act three mismatch: expected %x, got %x",
-			expectedActThree, actThree)
-	}
+	require.Equal(t, expectedActThree, actThree[:])
 
 	// Finally, we'll ensure that the responder itself also properly parses
 	// the last payload in the crypto handshake.
-	if err := responder.RecvActThree(actThree); err != nil {
-		t.Fatalf("responder unable to process act three: %v", err)
-	}
+	err = responder.RecvActThree(actThree)
+	require.NoError(t, err, "responder unable to process act three")
 
 	// As a final assertion, we'll ensure that both sides have derived the
 	// proper symmetric encryption keys.
@@ -438,31 +400,12 @@ func TestBolt0008TestVectors(t *testing.T) {
 		"bcf111ed8d588caf9ab4be716e42b01")
 	require.NoError(t, err, "unable to parse chaining key")
 
-	if !bytes.Equal(initiator.sendCipher.secretKey[:], sendingKey) {
-		t.Fatalf("sending key mismatch: expected %x, got %x",
-			initiator.sendCipher.secretKey[:], sendingKey)
-	}
-	if !bytes.Equal(initiator.recvCipher.secretKey[:], recvKey) {
-		t.Fatalf("receiving key mismatch: expected %x, got %x",
-			initiator.recvCipher.secretKey[:], recvKey)
-	}
-	if !bytes.Equal(initiator.chainingKey[:], chainKey) {
-		t.Fatalf("chaining key mismatch: expected %x, got %x",
-			initiator.chainingKey[:], chainKey)
-	}
-
-	if !bytes.Equal(responder.sendCipher.secretKey[:], recvKey) {
-		t.Fatalf("sending key mismatch: expected %x, got %x",
-			responder.sendCipher.secretKey[:], recvKey)
-	}
-	if !bytes.Equal(responder.recvCipher.secretKey[:], sendingKey) {
-		t.Fatalf("receiving key mismatch: expected %x, got %x",
-			responder.recvCipher.secretKey[:], sendingKey)
-	}
-	if !bytes.Equal(responder.chainingKey[:], chainKey) {
-		t.Fatalf("chaining key mismatch: expected %x, got %x",
-			responder.chainingKey[:], chainKey)
-	}
+	require.Equal(t, initiator.sendCipher.secretKey[:], sendingKey)
+	require.Equal(t, initiator.recvCipher.secretKey[:], recvKey)
+	require.Equal(t, initiator.chainingKey[:], chainKey)
+	require.Equal(t, responder.sendCipher.secretKey[:], recvKey)
+	require.Equal(t, responder.recvCipher.secretKey[:], sendingKey)
+	require.Equal(t, responder.chainingKey[:], chainKey)
 
 	// Now test as per section "transport-message test" in Test Vectors
 	// (the transportMessageVectors ciphertexts are from this section of BOLT 8);
@@ -492,36 +435,22 @@ func TestBolt0008TestVectors(t *testing.T) {
 
 	for i := 0; i < 1002; i++ {
 		err = initiator.WriteMessage(payload)
-		if err != nil {
-			t.Fatalf("could not write message %s", payload)
-		}
+		require.NoError(t, err, "could not write message")
 		_, err = initiator.Flush(&buf)
-		if err != nil {
-			t.Fatalf("could not flush message: %v", err)
-		}
+		require.NoError(t, err, "could not flush message")
 		if val, ok := transportMessageVectors[i]; ok {
 			binaryVal, err := hex.DecodeString(val)
-			if err != nil {
-				t.Fatalf("Failed to decode hex string %s", val)
-			}
-			if !bytes.Equal(buf.Bytes(), binaryVal) {
-				t.Fatalf("Ciphertext %x was not equal to expected %s",
-					buf.String()[:], val)
-			}
+			require.NoError(t, err, "Failed to decode hex string")
+			require.Equal(t, buf.Bytes(), binaryVal)
 		}
 
 		// Responder decrypts the bytes, in every iteration, and
 		// should always be able to decrypt the same payload message.
 		plaintext, err := responder.ReadMessage(&buf)
-		if err != nil {
-			t.Fatalf("failed to read message in responder: %v", err)
-		}
+		require.NoError(t, err, "failed to read message in responder")
 
 		// Ensure decryption succeeded
-		if !bytes.Equal(plaintext, payload) {
-			t.Fatalf("Decryption failed to receive plaintext: %s, got %s",
-				payload, plaintext)
-		}
+		require.Equal(t, plaintext, payload)
 
 		// Clear out the buffer for the next iteration
 		buf.Reset()
@@ -667,9 +596,8 @@ func TestFlush(t *testing.T) {
 // is not called again.
 func testFlush(t *testing.T, test flushTest, b *Machine, w io.Writer) {
 	payload := make([]byte, payloadSize)
-	if err := b.WriteMessage(payload); err != nil {
-		t.Fatalf("unable to write message: %v", err)
-	}
+	err := b.WriteMessage(payload)
+	require.NoError(t, err, "unable to write message")
 
 	for _, chunk := range test.chunks {
 		assertFlush(t, b, w, chunk.errAfter, chunk.expN, chunk.expErr)
@@ -693,10 +621,6 @@ func assertFlush(t *testing.T, b *Machine, w io.Writer, n int64, expN int,
 		w = NewTimeoutWriter(w, n)
 	}
 	nn, err := b.Flush(w)
-	if err != expErr {
-		t.Fatalf("expected flush err: %v, got: %v", expErr, err)
-	}
-	if nn != expN {
-		t.Fatalf("expected n: %d, got: %d", expN, nn)
-	}
+	require.Equal(t, expErr, err)
+	require.Equal(t, expN, nn)
 }

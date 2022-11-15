@@ -220,9 +220,8 @@ func setup(t *testing.T, initialChans []LocalChannel) *testContext {
 
 	// With the autopilot agent and all its dependencies we'll start the
 	// primary controller goroutine.
-	if err := agent.Start(); err != nil {
-		t.Fatalf("unable to start agent: %v", err)
-	}
+	err = agent.Start()
+	require.NoError(t, err, "unable to start agent")
 
 	t.Cleanup(func() {
 		// We must close quit before agent.Stop(), to make sure
@@ -300,9 +299,8 @@ func TestAgentChannelOpenSignal(t *testing.T) {
 	// At this point, the local state of the agent should
 	// have also been updated to reflect that the LN node
 	// now has an additional channel with one BTC.
-	if _, ok := testCtx.agent.chanState[newChan.ChanID]; !ok {
-		t.Fatalf("internal channel state wasn't updated")
-	}
+	_, ok := testCtx.agent.chanState[newChan.ChanID]
+	require.True(t, ok, "internal channel state wasn't updated")
 
 	// There shouldn't be a call to the Select method as we've returned
 	// "false" for NeedMoreChans above.
@@ -450,9 +448,8 @@ func TestAgentChannelCloseSignal(t *testing.T) {
 	// At this point, the local state of the agent should
 	// have also been updated to reflect that the LN node
 	// has no existing open channels.
-	if len(testCtx.agent.chanState) != 0 {
-		t.Fatalf("internal channel state wasn't updated")
-	}
+	require.Zero(t, len(testCtx.agent.chanState),
+		"internal channel state wasn't updated")
 
 	// There shouldn't be a call to the Select method as we've returned
 	// "false" for NeedMoreChans above.
@@ -495,11 +492,7 @@ func TestAgentBalanceUpdate(t *testing.T) {
 	// At this point, the local state of the agent should
 	// have also been updated to reflect that the LN node
 	// now has an additional 5BTC available.
-	if testCtx.agent.totalBalance != testCtx.walletBalance {
-		t.Fatalf("expected %v wallet balance "+
-			"instead have %v", testCtx.agent.totalBalance,
-			testCtx.walletBalance)
-	}
+	require.Equal(t, testCtx.agent.totalBalance, testCtx.walletBalance)
 
 	// There shouldn't be a call to the Select method as we've returned
 	// "false" for NeedMoreChans above.
@@ -529,9 +522,7 @@ func TestAgentImmediateAttach(t *testing.T) {
 	nodeKeys := make(map[NodeID]struct{})
 	for i := 0; i < numChans; i++ {
 		pub, err := testCtx.graph.addRandNode()
-		if err != nil {
-			t.Fatalf("unable to generate key: %v", err)
-		}
+		require.NoError(t, err, "unable to generate key")
 		nodeID := NewNodeID(pub)
 		directives[nodeID] = &NodeScore{
 			NodeID: nodeID,
@@ -562,16 +553,14 @@ func TestAgentImmediateAttach(t *testing.T) {
 	for i := 0; i < numChans; i++ {
 		select {
 		case openChan := <-chanController.openChanSignals:
-			if openChan.amt != btcutil.SatoshiPerBitcoin {
-				t.Fatalf("invalid chan amt: expected %v, got %v",
-					btcutil.SatoshiPerBitcoin, openChan.amt)
-			}
+			require.EqualValues(t,
+				btcutil.SatoshiPerBitcoin,
+				openChan.amt)
 			nodeID := NewNodeID(openChan.target)
 			_, ok := nodeKeys[nodeID]
-			if !ok {
-				t.Fatalf("unexpected key: %v, not found",
-					nodeID)
-			}
+			require.True(t, ok,
+				"unexpected key: %v, not found", nodeID)
+
 			delete(nodeKeys, nodeID)
 
 		case <-time.After(time.Second * 10):
@@ -598,9 +587,7 @@ func TestAgentPrivateChannels(t *testing.T) {
 	directives := make(map[NodeID]*NodeScore)
 	for i := 0; i < numChans; i++ {
 		pub, err := testCtx.graph.addRandNode()
-		if err != nil {
-			t.Fatalf("unable to generate key: %v", err)
-		}
+		require.NoError(t, err, "unable to generate key")
 		directives[NewNodeID(pub)] = &NodeScore{
 			NodeID: NewNodeID(pub),
 			Score:  0.5,
@@ -630,9 +617,8 @@ func TestAgentPrivateChannels(t *testing.T) {
 	for i := 0; i < numChans; i++ {
 		select {
 		case openChan := <-chanController.openChanSignals:
-			if !openChan.private {
-				t.Fatal("expected open channel request to be private")
-			}
+			require.True(t, openChan.private,
+				"expected open channel request to be private")
 		case <-time.After(10 * time.Second):
 			t.Fatal("channel not opened in time")
 		}
@@ -678,15 +664,8 @@ func TestAgentPendingChannelState(t *testing.T) {
 	select {
 	case openChan := <-chanController.openChanSignals:
 		chanAmt := testCtx.constraints.MaxChanSize()
-		if openChan.amt != chanAmt {
-			t.Fatalf("invalid chan amt: expected %v, got %v",
-				chanAmt, openChan.amt)
-		}
-		if !openChan.target.IsEqual(nodeKey) {
-			t.Fatalf("unexpected key: expected %x, got %x",
-				nodeKey.SerializeCompressed(),
-				openChan.target.SerializeCompressed())
-		}
+		require.Equal(t, chanAmt, openChan.amt)
+		require.Equal(t, nodeKey, openChan.target)
 	case <-time.After(time.Second * 10):
 		t.Fatalf("channel wasn't opened in time")
 	}
@@ -709,18 +688,9 @@ func TestAgentPendingChannelState(t *testing.T) {
 	// updating its internal state.
 	case req := <-testCtx.constraints.moreChanArgs:
 		chanAmt := testCtx.constraints.MaxChanSize()
-		if len(req.chans) != 1 {
-			t.Fatalf("should include pending chan in current "+
-				"state, instead have %v chans", len(req.chans))
-		}
-		if req.chans[0].Balance != chanAmt {
-			t.Fatalf("wrong chan balance: expected %v, got %v",
-				req.chans[0].Balance, chanAmt)
-		}
-		if req.chans[0].Node != nodeID {
-			t.Fatalf("wrong node ID: expected %x, got %x",
-				nodeID, req.chans[0].Node[:])
-		}
+		require.Equal(t, 1, len(req.chans))
+		require.Equal(t, req.chans[0].Balance, chanAmt)
+		require.Equal(t, nodeID, req.chans[0].Node)
 	case <-time.After(time.Second * 10):
 		t.Fatalf("need more chans wasn't queried in time")
 	}
@@ -738,13 +708,9 @@ func TestAgentPendingChannelState(t *testing.T) {
 	// node we have a pending channel to, should be ignored.
 	select {
 	case req := <-testCtx.heuristic.nodeScoresArgs:
-		if len(req.chans) == 0 {
-			t.Fatalf("expected to skip %v nodes, instead "+
-				"skipping %v", 1, len(req.chans))
-		}
-		if req.chans[0].Node != nodeID {
-			t.Fatalf("pending node not included in skip arguments")
-		}
+		require.NotZero(t, len(req.chans))
+		require.Equal(t, nodeID, req.chans[0].Node,
+			"pending node not included in skip arguments")
 	case <-time.After(time.Second * 10):
 		t.Fatalf("select wasn't queried in time")
 	}
@@ -882,16 +848,13 @@ func TestAgentSkipPendingConns(t *testing.T) {
 	// Both nodes should be part of the arguments.
 	select {
 	case req := <-testCtx.heuristic.nodeScoresArgs:
-		if len(req.nodes) != 2 {
-			t.Fatalf("expected %v nodes, instead "+
-				"had %v", 2, len(req.nodes))
-		}
-		if _, ok := req.nodes[nodeID]; !ok {
-			t.Fatalf("node not included in arguments")
-		}
-		if _, ok := req.nodes[nodeID2]; !ok {
-			t.Fatalf("node not included in arguments")
-		}
+		require.Equal(t, 2, len(req.nodes))
+
+		_, ok := req.nodes[nodeID]
+		require.True(t, ok, "node not included in arguments")
+
+		_, ok = req.nodes[nodeID2]
+		require.True(t, ok, "node not included in arguments")
 	case <-time.After(time.Second * 10):
 		t.Fatalf("select wasn't queried in time")
 	}
@@ -929,13 +892,10 @@ func TestAgentSkipPendingConns(t *testing.T) {
 	// and not part of the nodes attempting to be scored.
 	select {
 	case req := <-testCtx.heuristic.nodeScoresArgs:
-		if len(req.nodes) != 1 {
-			t.Fatalf("expected %v nodes, instead "+
-				"had %v", 1, len(req.nodes))
-		}
-		if _, ok := req.nodes[nodeID2]; !ok {
-			t.Fatalf("node not included in arguments")
-		}
+		require.Equal(t, 1, len(req.nodes))
+
+		_, ok := req.nodes[nodeID2]
+		require.True(t, ok, "node not included in arguments")
 	case <-time.After(time.Second * 10):
 		t.Fatalf("select wasn't queried in time")
 	}
@@ -977,13 +937,10 @@ func TestAgentSkipPendingConns(t *testing.T) {
 	// score request.
 	select {
 	case req := <-testCtx.heuristic.nodeScoresArgs:
-		if len(req.nodes) != 1 {
-			t.Fatalf("expected %v nodes, instead "+
-				"had %v", 1, len(req.nodes))
-		}
-		if _, ok := req.nodes[nodeID2]; !ok {
-			t.Fatalf("node not included in arguments")
-		}
+		require.Equal(t, 1, len(req.nodes))
+
+		_, ok := req.nodes[nodeID2]
+		require.True(t, ok, "node not included in arguments")
 	case <-time.After(time.Second * 10):
 		t.Fatalf("select wasn't queried in time")
 	}
@@ -1057,13 +1014,10 @@ func TestAgentQuitWhenPendingConns(t *testing.T) {
 	// Check the args.
 	select {
 	case req := <-testCtx.heuristic.nodeScoresArgs:
-		if len(req.nodes) != 1 {
-			t.Fatalf("expected %v nodes, instead "+
-				"had %v", 1, len(req.nodes))
-		}
-		if _, ok := req.nodes[nodeID]; !ok {
-			t.Fatalf("node not included in arguments")
-		}
+		require.Equal(t, 1, len(req.nodes))
+
+		_, ok := req.nodes[nodeID]
+		require.True(t, ok, "node not included in arguments")
 	case <-time.After(time.Second * 10):
 		t.Fatalf("select wasn't queried in time")
 	}
@@ -1093,9 +1047,7 @@ func TestAgentQuitWhenPendingConns(t *testing.T) {
 
 	select {
 	case err := <-stopped:
-		if err != nil {
-			t.Fatalf("error stopping agent: %v", err)
-		}
+		require.NoError(t, err, "error stopping agent")
 	case <-time.After(2 * time.Second):
 		t.Fatalf("unable to stop agent")
 	}
@@ -1127,20 +1079,11 @@ func respondWithScores(t *testing.T, testCtx *testContext,
 	case req := <-testCtx.heuristic.nodeScoresArgs:
 		// All nodes in the graph should be potential channel
 		// candidates.
-		if len(req.nodes) != len(nodeScores) {
-			t.Fatalf("expected %v nodes, instead had %v",
-				len(nodeScores), len(req.nodes))
-		}
+		require.Equal(t, len(nodeScores), len(req.nodes))
 
 		// 'existingChans' is already open.
-		if len(req.chans) != existingChans {
-			t.Fatalf("expected %d existing channel, got %v",
-				existingChans, len(req.chans))
-		}
-		if req.amt != chanSize {
-			t.Fatalf("expected channel size of %v, got %v",
-				chanSize, req.amt)
-		}
+		require.Equal(t, existingChans, len(req.chans))
+		require.Equal(t, chanSize, req.amt)
 
 	case <-time.After(time.Second * 3):
 		t.Fatalf("select wasn't queried in time")
@@ -1180,10 +1123,7 @@ func checkChannelOpens(t *testing.T, testCtx *testContext,
 		}
 	}
 
-	if totalAllocation != allocation {
-		t.Fatalf("expected agent to open channels totalling %v, "+
-			"instead was %v", allocation, totalAllocation)
-	}
+	require.Equal(t, allocation, totalAllocation)
 
 	// Finally, make sure the agent won't try opening more channels.
 	select {
@@ -1209,9 +1149,7 @@ func TestAgentChannelSizeAllocation(t *testing.T) {
 	nodeScores := make(map[NodeID]*NodeScore)
 	for i := 0; i < numNodes; i++ {
 		nodeKey, err := testCtx.graph.addRandNode()
-		if err != nil {
-			t.Fatalf("unable to generate key: %v", err)
-		}
+		require.NoError(t, err, "unable to generate key")
 		nodeID := NewNodeID(nodeKey)
 		nodeScores[nodeID] = &NodeScore{
 			NodeID: nodeID,
@@ -1223,14 +1161,8 @@ func TestAgentChannelSizeAllocation(t *testing.T) {
 	// next action as it local state has now been modified.
 	select {
 	case arg := <-testCtx.constraints.moreChanArgs:
-		if len(arg.chans) != 0 {
-			t.Fatalf("expected agent to have no channels open, "+
-				"had %v", len(arg.chans))
-		}
-		if arg.balance != testCtx.walletBalance {
-			t.Fatalf("expected agent to have %v balance, had %v",
-				testCtx.walletBalance, arg.balance)
-		}
+		require.Zero(t, len(arg.chans))
+		require.Equal(t, testCtx.walletBalance, arg.balance)
 	case <-time.After(time.Second * 3):
 		t.Fatalf("heuristic wasn't queried in time")
 	}

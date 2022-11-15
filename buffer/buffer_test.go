@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/lightningnetwork/lnd/buffer"
+	"github.com/stretchr/testify/require"
 )
 
 // TestRecycleSlice asserts that RecycleSlice always zeros a byte slice.
@@ -35,10 +36,9 @@ func TestRecycleSlice(t *testing.T) {
 			buffer.RecycleSlice(test.slice)
 
 			expSlice := make([]byte, len(test.slice))
-			if !bytes.Equal(expSlice, test.slice) {
-				t.Fatalf("slice not recycled, want: %v, got: %v",
-					expSlice, test.slice)
-			}
+			require.True(t, bytes.Equal(expSlice, test.slice),
+				"slice not recycled, want: %v, got: %v",
+				expSlice, test.slice)
 		})
 	}
 }

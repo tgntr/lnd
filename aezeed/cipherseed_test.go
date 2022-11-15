@@ -343,25 +343,16 @@ func TestMnemonicEncoding(t *testing.T) {
 	// conversion.
 	mainScenario := func(cipherSeedBytes [EncipheredCipherSeedSize]byte) bool {
 		mnemonic, err := cipherTextToMnemonic(cipherSeedBytes)
-		if err != nil {
-			t.Fatalf("unable to map cipher text: %v", err)
-			return false
-		}
+		require.NoError(t, err, "unable to map cipher text")
 
 		newCipher := mnemonicToCipherText(&mnemonic)
-
-		if newCipher != cipherSeedBytes {
-			t.Fatalf("cipherseed doesn't match: expected %v, got %v",
-				cipherSeedBytes, newCipher)
-			return false
-		}
+		require.Equal(t, cipherSeedBytes, newCipher)
 
 		return true
 	}
 
-	if err := quick.Check(mainScenario, nil); err != nil {
-		t.Fatalf("fuzz check failed: %v", err)
-	}
+	err := quick.Check(mainScenario, nil)
+	require.NoError(t, err, "fuzz check failed")
 }
 
 // TestEncipherDecipher is a property-based test that ensures that given a
@@ -381,45 +372,25 @@ func TestEncipherDecipher(t *testing.T) {
 		now := time.Unix(nowInt, 0)
 
 		cipherSeed, err := New(version, &entropy, now)
-		if err != nil {
-			t.Fatalf("unable to map cipher text: %v", err)
-			return false
-		}
+		require.NoError(t, err, "unable to map cipher text")
 
 		mnemonic, err := cipherSeed.ToMnemonic(pass[:])
-		if err != nil {
-			t.Fatalf("unable to generate mnemonic: %v", err)
-			return false
-		}
+		require.NoError(t, err, "unable to generate mnemonic")
 
 		cipherSeed2, err := mnemonic.ToCipherSeed(pass[:])
-		if err != nil {
-			t.Fatalf("unable to decrypt cipher seed: %v", err)
-			return false
-		}
+		require.NoError(t, err, "unable to decrypt cipher seed")
 
-		if cipherSeed.InternalVersion != cipherSeed2.InternalVersion {
-			t.Fatalf("mismatched versions: expected %v, got %v",
-				cipherSeed.InternalVersion, cipherSeed2.InternalVersion)
-			return false
-		}
-		if cipherSeed.Birthday != cipherSeed2.Birthday {
-			t.Fatalf("mismatched birthday: expected %v, got %v",
-				cipherSeed.Birthday, cipherSeed2.Birthday)
-			return false
-		}
-		if cipherSeed.Entropy != cipherSeed2.Entropy {
-			t.Fatalf("mismatched versions: expected %x, got %x",
-				cipherSeed.Entropy[:], cipherSeed2.Entropy[:])
-			return false
-		}
+		require.Equal(t,
+			cipherSeed.InternalVersion,
+			cipherSeed2.InternalVersion)
+		require.Equal(t, cipherSeed.Birthday, cipherSeed2.Birthday)
+		require.Equal(t, cipherSeed.Entropy, cipherSeed2.Entropy)
 
 		return true
 	}
 
-	if err := quick.Check(mainScenario, nil); err != nil {
-		t.Fatalf("fuzz check failed: %v", err)
-	}
+	err := quick.Check(mainScenario, nil)
+	require.NoError(t, err, "fuzz check failed")
 }
 
 // TestSeedEncodeDecode tests that we're able to reverse the encoding of an
@@ -441,39 +412,22 @@ func TestSeedEncodeDecode(t *testing.T) {
 		}
 
 		var b bytes.Buffer
-		if err := seed.encode(&b); err != nil {
-			t.Fatalf("unable to encode: %v", err)
-			return false
-		}
+		err := seed.encode(&b)
+		require.NoError(t, err, "unable to encode")
 
 		var newSeed CipherSeed
-		if err := newSeed.decode(&b); err != nil {
-			t.Fatalf("unable to decode: %v", err)
-			return false
-		}
+		err = newSeed.decode(&b)
+		require.NoError(t, err, "unable to decode")
 
-		if seed.InternalVersion != newSeed.InternalVersion {
-			t.Fatalf("mismatched versions: expected %v, got %v",
-				seed.InternalVersion, newSeed.InternalVersion)
-			return false
-		}
-		if seed.Birthday != newSeed.Birthday {
-			t.Fatalf("mismatched birthday: expected %v, got %v",
-				seed.Birthday, newSeed.Birthday)
-			return false
-		}
-		if seed.Entropy != newSeed.Entropy {
-			t.Fatalf("mismatched versions: expected %x, got %x",
-				seed.Entropy[:], newSeed.Entropy[:])
-			return false
-		}
+		require.Equal(t, seed.InternalVersion, newSeed.InternalVersion)
+		require.Equal(t, seed.Birthday, newSeed.Birthday)
+		require.Equal(t, seed.Entropy, newSeed.Entropy)
 
 		return true
 	}
 
-	if err := quick.Check(mainScenario, nil); err != nil {
-		t.Fatalf("fuzz check failed: %v", err)
-	}
+	err := quick.Check(mainScenario, nil)
+	require.NoError(t, err, "fuzz check failed")
 }
 
 // TestDecipherUnknownMnemonicWord tests that if we obtain a mnemonic, then

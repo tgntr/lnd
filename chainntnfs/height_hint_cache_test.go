@@ -48,9 +48,7 @@ func TestHeightHintCacheConfirms(t *testing.T) {
 	copy(unknownHash[:], bytes.Repeat([]byte{0x01}, 32))
 	unknownConfRequest := ConfRequest{TxID: unknownHash}
 	_, err := hintCache.QueryConfirmHint(unknownConfRequest)
-	if err != ErrConfirmHintNotFound {
-		t.Fatalf("expected ErrConfirmHintNotFound, got: %v", err)
-	}
+	require.Equal(t, ErrConfirmHintNotFound, err)
 
 	// Now, we'll create some transaction hashes and commit them to the
 	// cache with the same confirm hint.
@@ -70,28 +68,21 @@ func TestHeightHintCacheConfirms(t *testing.T) {
 	// we're able to properly retrieve the confirm hints.
 	for _, confRequest := range confRequests {
 		confirmHint, err := hintCache.QueryConfirmHint(confRequest)
-		if err != nil {
-			t.Fatalf("unable to query for hint of %v: %v", confRequest, err)
-		}
-		if confirmHint != height {
-			t.Fatalf("expected confirm hint %d, got %d", height,
-				confirmHint)
-		}
+		require.NoError(t, err,
+			"unable to query for hint of %v", confRequest)
+		require.EqualValues(t, height, confirmHint)
 	}
 
 	// We'll also attempt to purge all of them in a single database
 	// transaction.
-	if err := hintCache.PurgeConfirmHint(confRequests...); err != nil {
-		t.Fatalf("unable to remove confirm hints: %v", err)
-	}
+	err = hintCache.PurgeConfirmHint(confRequests...)
+	require.NoError(t, err, "unable to remove confirm hints")
 
 	// Finally, we'll attempt to query for each hash. We should expect not
 	// to find a hint for any of them.
 	for _, confRequest := range confRequests {
 		_, err := hintCache.QueryConfirmHint(confRequest)
-		if err != ErrConfirmHintNotFound {
-			t.Fatalf("expected ErrConfirmHintNotFound, got :%v", err)
-		}
+		require.Equal(t, ErrConfirmHintNotFound, err)
 	}
 }
 
@@ -107,9 +98,7 @@ func TestHeightHintCacheSpends(t *testing.T) {
 	unknownOutPoint := wire.OutPoint{Index: 1}
 	unknownSpendRequest := SpendRequest{OutPoint: unknownOutPoint}
 	_, err := hintCache.QuerySpendHint(unknownSpendRequest)
-	if err != ErrSpendHintNotFound {
-		t.Fatalf("expected ErrSpendHintNotFound, got: %v", err)
-	}
+	require.Equal(t, ErrSpendHintNotFound, err)
 
 	// Now, we'll create some outpoints and commit them to the cache with
 	// the same spend hint.
@@ -129,28 +118,19 @@ func TestHeightHintCacheSpends(t *testing.T) {
 	// that we're able to properly retrieve the confirm hints.
 	for _, spendRequest := range spendRequests {
 		spendHint, err := hintCache.QuerySpendHint(spendRequest)
-		if err != nil {
-			t.Fatalf("unable to query for hint: %v", err)
-		}
-		if spendHint != height {
-			t.Fatalf("expected spend hint %d, got %d", height,
-				spendHint)
-		}
+		require.NoError(t, err, "unable to query for hint")
+		require.EqualValues(t, height, spendHint)
 	}
 
 	// We'll also attempt to purge all of them in a single database
 	// transaction.
-	if err := hintCache.PurgeSpendHint(spendRequests...); err != nil {
-		t.Fatalf("unable to remove spend hint: %v", err)
-	}
-
+	err = hintCache.PurgeSpendHint(spendRequests...)
+	require.NoError(t, err, "unable to remove spend hint")
 	// Finally, we'll attempt to query for each outpoint. We should expect
 	// not to find a hint for any of them.
 	for _, spendRequest := range spendRequests {
 		_, err = hintCache.QuerySpendHint(spendRequest)
-		if err != ErrSpendHintNotFound {
-			t.Fatalf("expected ErrSpendHintNotFound, got: %v", err)
-		}
+		require.Equal(t, ErrSpendHintNotFound, err)
 	}
 }
 

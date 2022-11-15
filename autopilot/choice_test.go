@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"testing"
 	"testing/quick"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestWeightedChoiceEmptyMap tests that passing in an empty slice of weights
@@ -15,10 +17,7 @@ func TestWeightedChoiceEmptyMap(t *testing.T) {
 
 	var w []float64
 	_, err := weightedChoice(w)
-	if err != ErrNoPositive {
-		t.Fatalf("expected ErrNoPositive when choosing in "+
-			"empty map, instead got %v", err)
-	}
+	require.Equal(t, ErrNoPositive, err)
 }
 
 // singeNonZero is a type used to generate float64 slices with one non-zero
@@ -76,9 +75,8 @@ func TestWeightedChoiceSingleIndex(t *testing.T) {
 		return choice == nonZeroElem
 	}
 
-	if err := quick.Check(property, nil); err != nil {
-		t.Fatal(err)
-	}
+	err := quick.Check(property, nil)
+	require.NoError(t, err)
 }
 
 // nonNegative is a type used to generate float64 slices with non-negative
@@ -151,10 +149,8 @@ func TestWeightedChoiceDistribution(t *testing.T) {
 	property := func(weights nonNegative) bool {
 		return assertChoice(weights, iterations)
 	}
-
-	if err := quick.Check(property, nil); err != nil {
-		t.Fatal(err)
-	}
+	err := quick.Check(property, nil)
+	require.NoError(t, err)
 }
 
 // TestChooseNEmptyMap checks that chooseN returns an empty result when no
@@ -173,9 +169,8 @@ func TestChooseNEmptyMap(t *testing.T) {
 		return len(res) == 0
 	}
 
-	if err := quick.Check(property, nil); err != nil {
-		t.Fatal(err)
-	}
+	err := quick.Check(property, nil)
+	require.NoError(t, err)
 }
 
 // candidateMapVarLen is a type we'll use to generate maps of various lengths
@@ -249,9 +244,8 @@ func TestChooseNMinimum(t *testing.T) {
 		return true
 	}
 
-	if err := quick.Check(property, nil); err != nil {
-		t.Fatal(err)
-	}
+	err := quick.Check(property, nil)
+	require.NoError(t, err)
 }
 
 // TestChooseNSample sanity checks that nodes are picked by chooseN according
@@ -304,9 +298,7 @@ func TestChooseNSample(t *testing.T) {
 		count := make(map[NodeID]int)
 		for i := 0; i < int(iterations); i++ {
 			res, err := chooseN(n, nodes)
-			if err != nil {
-				t.Fatalf("failed choosing nodes: %v", err)
-			}
+			require.NoError(t, err, "failed choosing nodes")
 
 			for nID := range res {
 				count[nID]++
@@ -328,11 +320,8 @@ func TestChooseNSample(t *testing.T) {
 			half := cnt / 2
 			expLow := half - half/5
 			expHigh := half + half/5
-			if sums[score/2] < expLow || sums[score/2] > expHigh {
-				t.Fatalf("expected the nodes with score %v "+
-					"to be chosen about %v times, instead "+
-					"was %v", score/2, half, sums[score/2])
-			}
+			require.GreaterOrEqual(t, sums[score/2], expLow)
+			require.LessOrEqual(t, sums[score/2], expHigh)
 		}
 	}
 }
